@@ -2,7 +2,8 @@
 import torch
 from data_utils import load_data
 import argparse
-from model import GNN
+from model import GNN           # TODO check this
+# from model_message_passing import GNN
 import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
 
@@ -21,7 +22,14 @@ print(f'Number of graphs: {len(dataset)}')
 print(f'Number of features: {dataset.num_features}')
 print(f'Number of classes: {dataset.num_classes}')
 
-data = dataset[0]  # Get the first graph object.
+
+gpu=1
+device = torch.device(f'cuda:{gpu}' if torch.cuda.is_available() else 'cpu')
+print(device)
+
+# device='cpu'
+
+data = dataset[0].to(device)  # Get the first graph object.
 print()
 print(data)
 print('===========================================================================================================')
@@ -32,10 +40,11 @@ print(f'Number of edges: {data.num_edges}')
 
 model_folder = './models/'+args.dataset        # TODO maybe remove this while submitting
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = GNN(hidden_channels=32,num_features=dataset.num_features,num_layers=args.k,num_classes=dataset.num_classes).to(device)   # Note change num_features when needed
 
-optimizer = torch.optim.Adam(model.parameters(), lr=5e-4,weight_decay=5e-6)
+
+model = GNN(hidden_channels=512,num_features=dataset.num_features,num_layers=args.k,num_classes=dataset.num_classes).to(device)   # Note change num_features when needed
+
+optimizer = torch.optim.Adam(model.parameters(), lr=5e-5,weight_decay=5e-1)
 criterion = torch.nn.CrossEntropyLoss()
 
 def getMacroF1(y_true, y_pred):
@@ -50,7 +59,7 @@ loss_val_list = []
 def train(epoch):
     model.train()
     optimizer.zero_grad()  # Clear gradients.
-    out = model(data.x, data.edge_index)  # Perform a single forward pass.
+    out = model(data.x, data.edge_index, device)  # Perform a single forward pass.
     loss = criterion(out[data.train_mask], data.y[data.train_mask])  # Compute the loss solely based on the training nodes.
     if epoch%20 == 0:
         f1_train = getMacroF1(data.y[data.train_mask].cpu().numpy(), out[data.train_mask].argmax(dim=1).cpu().numpy())
@@ -63,7 +72,7 @@ def train(epoch):
 best_val_f1 = -1
 def val(epoch):
     model.eval()
-    out = model(data.x, data.edge_index)
+    out = model(data.x, data.edge_index, device)
     val_loss = criterion(out[data.val_mask], data.y[data.val_mask])
     f1_val = getMacroF1(data.y[data.val_mask].cpu().numpy(), out[data.val_mask].argmax(dim=1).cpu().numpy())
     global best_val_f1
@@ -75,11 +84,11 @@ def val(epoch):
     pred = out.argmax(dim=1)  # Use the class with highest probability.
     val_correct = pred[data.val_mask] == data.y[data.val_mask]  # Check against ground-truth labels.
     val_acc = int(val_correct.sum()) / int(data.val_mask.sum())  # Derive ratio of correct predictions.
-    return val_loss, val_acc
+    return val_loss, val_acc, f1_val
 
 def test():
     model.eval()
-    out = model(data.x, data.edge_index)
+    out = model(data.x, data.edge_index, device)
     f1_test = getMacroF1(data.y[data.test_mask].cpu().numpy(), out[data.test_mask].argmax(dim=1).cpu().numpy())
     pred = out.argmax(dim=1)  # Use the class with highest probability.
     test_correct = pred[data.test_mask] == data.y[data.test_mask]  # Check against ground-truth labels.
@@ -111,17 +120,17 @@ def plot():
     plt.savefig(f"2019CS10394-train-val-{args.dataset}-{args.k}-loss.png")
     plt.close()
 
-num_epochs = 100
+num_epochs = 2000
 best_val_loss = -1
 bestModel = None
 for epoch in range(num_epochs):
     loss = train(epoch)
-    val_loss, val_acc = val(epoch)
+    val_loss, val_acc, f1_val = val(epoch)
     if best_val_loss == -1 or val_loss < best_val_loss:
         best_val_loss = val_loss
         bestModel = model
         torch.save(model.state_dict(), model_folder+'/bestval.pth')
-    print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}')
+    print(f'Epoch: {epoch:03d}, Loss: {loss:.4f}, Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}, Val F1: {f1_val:.4f}')
 
 best_test_f1 = -1
 with torch.no_grad():

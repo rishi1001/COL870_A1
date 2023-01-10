@@ -12,3 +12,7 @@ do
     echo "Value of k = $i"
     python run_experiment.py --dataset "Cora" --k $i --model_type "gnn"
 done
+
+echo "Plotting comparision of f1 scores"
+python plot_f1.py
+

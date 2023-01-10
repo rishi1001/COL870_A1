@@ -20,19 +20,19 @@ class GNN(torch.nn.Module):
 
         self.last_linear = Linear(hidden_channels, num_classes)
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, device):
         
-        A = torch.sparse.FloatTensor(edge_index, torch.ones(edge_index.shape[1]), torch.Size([x.shape[0], x.shape[0]]))
+        A = torch.sparse.FloatTensor(edge_index, torch.ones(edge_index.shape[1]).to(device), torch.Size([x.shape[0], x.shape[0]])).to(device)
         # print(A.shape)
 
         # add self loop
-        A = A + torch.sparse.FloatTensor(torch.eye(x.shape[0]).nonzero().t(), torch.ones(x.shape[0]), torch.Size([x.shape[0], x.shape[0]]))
+        A = A + torch.sparse.FloatTensor(torch.eye(x.shape[0]).nonzero().t().to(device), torch.ones(x.shape[0]).to(device), torch.Size([x.shape[0], x.shape[0]])).to(device)
 
         for i in range(self.num_layers):
             # do gnn mean aggregation
-            x = torch.spmm(A, x)            # TODO check this
+            x = torch.spmm(A, x).to(device)            # TODO check this
             # do linear transformation
-            x = self.linear_list[i](x)
+            x = self.linear_list[i].to(device)(x)
             # do batch norm
             x = self.batch_num_list[i](x)
             # do relu
@@ -40,5 +40,6 @@ class GNN(torch.nn.Module):
 
         # do final linear transformation
         x = self.last_linear(x)
+        # x = x.relu()       # TODO remove this
 
         return x
