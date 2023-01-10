@@ -6,6 +6,7 @@ from model import GNN           # TODO check this
 # from model_message_passing import GNN
 import sklearn.metrics as metrics
 import matplotlib.pyplot as plt
+import os
 
 
 parser = argparse.ArgumentParser()
@@ -38,7 +39,9 @@ print('=========================================================================
 print(f'Number of nodes: {data.num_nodes}')
 print(f'Number of edges: {data.num_edges}')
 
-model_folder = './models/'+args.dataset        # TODO maybe remove this while submitting
+model_folder = './models/'+args.dataset 
+
+os.makedirs(model_folder, exist_ok=True)
 
 
 
